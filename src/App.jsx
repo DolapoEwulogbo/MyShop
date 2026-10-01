@@ -6,6 +6,7 @@ import Product from './pages/Product.jsx'
 import Cart from './pages/Cart.jsx'
 import Checkout from './pages/Checkout.jsx'
 import Login from './pages/Login.jsx'
+import AuthCallback from './pages/AuthCallback.jsx'
 import Success from './pages/Success.jsx'
 import Orders from './pages/Orders.jsx'
 import Account from './pages/Account.jsx'
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/products/:id" element={<Product />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
           <Route path="/success/:orderId" element={<Success />} />
           <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
