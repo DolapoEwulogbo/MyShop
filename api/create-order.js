@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { sendOrderConfirmation } from '../server/email.js'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
@@ -167,6 +168,7 @@ export default async function handler(req, res) {
     return send(res, 200, {
       success: true,
       duplicate: true,
+      emailSent: false,
       order: existingOrder
     })
   }
@@ -223,9 +225,45 @@ export default async function handler(req, res) {
     })
   }
 
+  // Email is best-effort: failure never cancels the order (AGENTS.md Sec 9).
+  // Only send on first creation — retries with the same idempotency key
+  // return emailSent:false without resending.
+  let emailSent = false
+  if (order?.created !== false) {
+    try {
+      const { data: fullOrder } = await supabase
+        .from('orders')
+        .select('id, order_number, total_amount, status, customer_name, customer_email')
+        .eq('id', order.order_id)
+        .maybeSingle()
+
+      const { data: fullItems } = await supabase
+        .from('order_items')
+        .select('quantity, price, products ( name )')
+        .eq('order_id', order.order_id)
+
+      emailSent = await sendOrderConfirmation({
+        to: fullOrder?.customer_email || customerEmail.trim(),
+        customerName: fullOrder?.customer_name || customerName.trim(),
+        orderNumber: fullOrder?.order_number ?? order?.order_number,
+        items: (fullItems || []).map((row) => ({
+          name: row.products?.name || 'Item',
+          quantity: row.quantity,
+          price: row.price
+        })),
+        total: fullOrder?.total_amount ?? 0,
+        status: fullOrder?.status || 'pending'
+      })
+    } catch (err) {
+      console.error(`Order email failed (non-fatal): ${err.message}`)
+      emailSent = false
+    }
+  }
+
   return send(res, 201, {
     success: true,
     duplicate: order?.created === false,
+    emailSent,
     order
   })
 }

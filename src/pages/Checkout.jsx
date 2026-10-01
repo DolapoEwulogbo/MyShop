@@ -147,7 +147,8 @@ export default function Checkout() {
       navigate(`/success/${result.order.order_number}`, {
         state: {
           orderNumber: result.order.order_number,
-          total: result.order.total_amount
+          total: result.order.total_amount,
+          emailSent: result.emailSent === true
         }
       })
     } catch (err) {
