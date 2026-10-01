@@ -53,11 +53,11 @@ Check: **Table Editor** shows `profiles`, `products` (8 rows), `orders`, `order_
 
 Supabase → **Authentication → URL Configuration**:
 
-* **Site URL:** your Vercel URL once you have it (use `http://localhost:3000` until then).
+* **Site URL:** your deployed Vercel URL (e.g. `https://my-shop-indol-eight.vercel.app`). Supabase falls back to the Site URL when a `redirectTo` isn't allow-listed, so this must be the production URL — not a localhost one. Localhost origins belong in the Redirect URLs only.
 * **Redirect URLs** (add all):
   * `http://localhost:3000/**`
   * `http://localhost:5173/**`
-  * `https://<your-project>.vercel.app/**`
+  * `https://my-shop-indol-eight.vercel.app/**`
 
 Remember: Google gets the **Supabase** callback; Supabase gets **your app's** URLs. They are different.
 
