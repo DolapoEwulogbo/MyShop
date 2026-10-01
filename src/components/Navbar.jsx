@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
 
-// Phase 3: navbar with live cart count. Auth state arrives in Phase 5.
 export default function Navbar() {
   const { count } = useCart()
+  const { user, loading } = useAuth()
   return (
     <header>
       <nav aria-label="Main navigation">
@@ -20,7 +21,7 @@ export default function Navbar() {
           Orders
         </NavLink>
         <NavLink to="/account" className={navClass}>
-          Account
+          {loading ? 'Account' : user ? 'Account' : 'Sign in'}
         </NavLink>
       </nav>
     </header>
