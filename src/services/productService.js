@@ -1,19 +1,24 @@
-// Phase 2: mock-backed service. Phase 4 swaps this to Supabase.
-// Pages -> Components -> Services -> data source (AGENTS.md layering rule).
-import { getMockProductById, mockProducts } from '../data/mockProducts.js'
+import { supabase } from '../lib/supabase.js'
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+function mapError(action) {
+  return new Error('We could not load products. Please check your connection and try again. (' + action + ')')
+}
 
 export async function listProducts() {
-  await delay(400)
-  return mockProducts
+  const { data, error } = await supabase
+    .from('products')
+    .select('id, name, description, price, image_url, stock')
+    .order('name', { ascending: true })
+  if (error) throw mapError('list')
+  return data ?? []
 }
 
 export async function getProductById(id) {
-  await delay(300)
-  const product = getMockProductById(id)
-  if (!product) {
-    throw new Error('Product not found.')
-  }
-  return product
+  const { data, error } = await supabase
+    .from('products')
+    .select('id, name, description, price, image_url, stock')
+    .eq('id', id)
+    .single()
+  if (error || !data) throw new Error('We could not load this product. It may have been removed.')
+  return data
 }
