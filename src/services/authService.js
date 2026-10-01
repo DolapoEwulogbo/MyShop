@@ -4,11 +4,10 @@ import { supabase } from '../lib/supabase.js'
 // Redirect target is /auth/callback?next=<path> so sign-in works from any
 // domain (localhost, preview, Vercel) — Supabase only needs to whitelist
 // the /auth/callback URLs, not every page.
-// NOTE: the auth flow options (flowType 'pkce', detectSessionInUrl false) are
-// set once on the client in ../lib/supabase.js. flowType must be 'pkce' for
-// Supabase to issue a ?code= at all, and the exchange is owned solely by
-// AuthCallback. Nothing auth-flow-related belongs here, so the two sides
-// cannot disagree.
+// NOTE: the auth flow options (flowType 'pkce', detectSessionInUrl true) are
+// set once on the client in ../lib/supabase.js. With PKCE the redirect carries
+// a ?code= that the client exchanges on load, and AuthCallback only waits for
+// the resulting session. Nothing auth-flow-related belongs here.
 export async function signInWithGoogle(returnPath = '/checkout') {
   const safePath =
     typeof returnPath === 'string' && returnPath.startsWith('/') && !returnPath.startsWith('//')

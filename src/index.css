@@ -487,8 +487,8 @@ main:focus {
 }
 
 /* ============================================================
-   /auth/callback diagnostic panel.
-   Renders key NAMES and booleans only — never tokens or code values.
+   /auth/callback diagnostic panel (development only).
+   Renders URL/state facts only — never tokens or code values.
    ============================================================ */
 
 .callback-page {
