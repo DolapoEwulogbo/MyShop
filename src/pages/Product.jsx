@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import ErrorMessage from '../components/ErrorMessage.jsx'
 import Loading from '../components/Loading.jsx'
+import { useCart } from '../context/CartContext.jsx'
 import { getProductById } from '../services/productService.js'
 import { formatNaira, getAvailability } from '../utils/currency.js'
 
@@ -14,6 +15,7 @@ export default function Product() {
   const [error, setError] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [notice, setNotice] = useState('')
+  const { add } = useCart()
 
   async function load() {
     setLoading(true)
@@ -52,7 +54,14 @@ export default function Product() {
   }
 
   function handleAdd() {
-    setNotice('Added ' + quantity + ' x ' + product.name + ' to cart')
+    const result = add(product, quantity)
+    if (!result.added) {
+      setNotice('Sorry, this product is out of stock.')
+    } else if (result.capped) {
+      setNotice('Only ' + product.stock + ' left — cart updated to the maximum.')
+    } else {
+      setNotice('Added ' + quantity + ' x ' + product.name + ' to cart')
+    }
   }
 
   return (

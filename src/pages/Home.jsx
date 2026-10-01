@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import ErrorMessage from '../components/ErrorMessage.jsx'
 import Loading from '../components/Loading.jsx'
 import ProductGrid from '../components/ProductGrid.jsx'
+import { useCart } from '../context/CartContext.jsx'
 import { listProducts } from '../services/productService.js'
 
 export default function Home() {
@@ -9,6 +10,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const { add } = useCart()
 
   async function load() {
     setLoading(true)
@@ -28,9 +30,16 @@ export default function Home() {
   }, [])
 
   function handleAdd(product) {
-    setNotice('Added ' + product.name + ' to cart')
+    const result = add(product, 1)
+    if (!result.added) {
+      setNotice('Sorry, this product is out of stock.')
+    } else if (result.capped) {
+      setNotice('Only ' + product.stock + ' left — cart updated to the maximum.')
+    } else {
+      setNotice('Added ' + product.name + ' to cart')
+    }
     if (handleAdd.timer) window.clearTimeout(handleAdd.timer)
-    handleAdd.timer = window.setTimeout(() => setNotice(''), 2500)
+    handleAdd.timer = window.setTimeout(() => setNotice(''), 3000)
   }
 
   return (

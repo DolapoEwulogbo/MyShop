@@ -9,7 +9,7 @@ import Success from './pages/Success.jsx'
 import Orders from './pages/Orders.jsx'
 import Account from './pages/Account.jsx'
 
-// Phase 2: routing shell + storefront. Cart state arrives in Phase 3.
+// Phase 3: routing shell + storefront + cart (mock data, localStorage).
 export default function App() {
   return (
     <>
@@ -27,7 +27,7 @@ export default function App() {
         </Routes>
       </main>
       <footer>
-        <p>My Shop — everyday essentials.</p>
+        <p>My Shop - everyday essentials.</p>
       </footer>
     </>
   )
