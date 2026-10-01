@@ -58,37 +58,51 @@ export default async function handler(req, res) {
 
   const {
     customerName,
+    customerEmail,
     customerPhone,
     deliveryAddress,
     items,
     idempotencyKey
   } = req.body || {}
 
-  if (
-    typeof customerName !== 'string' ||
-    !customerName.trim() ||
-    typeof customerPhone !== 'string' ||
-    !customerPhone.trim() ||
-    typeof deliveryAddress !== 'string' ||
-    !deliveryAddress.trim()
-  ) {
-    return send(res, 400, {
-      error: 'Name, phone number, and delivery address are required.'
-    })
+  const fieldErrors = {}
+
+  if (typeof customerName !== 'string' || !customerName.trim()) {
+    fieldErrors.customerName = 'Please enter your full name.'
   }
 
-  if (!Array.isArray(items) || items.length === 0) {
-    return send(res, 400, {
-      error: 'Your cart is empty.'
-    })
+  if (
+    typeof customerEmail !== 'string' ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())
+  ) {
+    fieldErrors.customerEmail = 'Please enter a valid email address.'
+  }
+
+  if (typeof customerPhone !== 'string' || !customerPhone.trim()) {
+    fieldErrors.customerPhone = 'Please enter your phone number.'
+  }
+
+  if (typeof deliveryAddress !== 'string' || !deliveryAddress.trim()) {
+    fieldErrors.deliveryAddress = 'Please enter your delivery address.'
+  }
+
+  if (!Array.isArray(items) || items.length === 0 || items.length > 50) {
+    fieldErrors.items = 'Your cart must contain between 1 and 50 items.'
   }
 
   if (
     typeof idempotencyKey !== 'string' ||
-    !idempotencyKey.trim()
+    !idempotencyKey.trim() ||
+    idempotencyKey.trim().length > 64
   ) {
+    fieldErrors.idempotencyKey =
+      'A valid order request key is required (non-empty, max 64 characters).'
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
     return send(res, 400, {
-      error: 'A valid order request key is required.'
+      error: 'Please fix the highlighted fields and try again.',
+      fieldErrors
     })
   }
 
@@ -102,12 +116,14 @@ export default async function handler(req, res) {
       typeof item.productId !== 'string' ||
       !item.productId ||
       !Number.isInteger(item.quantity) ||
-      item.quantity < 1
+      item.quantity < 1 ||
+      item.quantity > 99
   )
 
   if (invalidItem) {
     return send(res, 400, {
-      error: 'One or more cart items are invalid.'
+      error: 'One or more cart items are invalid. Quantity must be 1-99.',
+      fieldErrors: { items: 'Each item needs a valid product and quantity 1-99.' }
     })
   }
 
@@ -169,7 +185,7 @@ export default async function handler(req, res) {
       p_user_id: user.id,
       p_idempotency_key: idempotencyKey.trim(),
       p_customer_name: customerName.trim(),
-      p_customer_email: user.email || '',
+      p_customer_email: customerEmail.trim(),
       p_customer_phone: customerPhone.trim(),
       p_delivery_address: deliveryAddress.trim(),
       p_items: cleanItems
@@ -183,19 +199,22 @@ export default async function handler(req, res) {
 
     if (message.startsWith('INVALID_ITEMS:')) {
       return send(res, 400, {
-        error: message.replace('INVALID_ITEMS:', '').trim()
+        error: message.replace('INVALID_ITEMS:', '').trim(),
+        code: 'INVALID_ITEMS'
       })
     }
 
     if (message.startsWith('PRODUCT_NOT_FOUND:')) {
-      return send(res, 404, {
-        error: 'One or more products are no longer available.'
+      return send(res, 409, {
+        error: 'One or more products are no longer available.',
+        code: 'PRODUCT_NOT_FOUND'
       })
     }
 
     if (message.startsWith('INSUFFICIENT_STOCK:')) {
       return send(res, 409, {
-        error: message.replace('INSUFFICIENT_STOCK:', '').trim()
+        error: message.replace('INSUFFICIENT_STOCK:', '').trim(),
+        code: 'INSUFFICIENT_STOCK'
       })
     }
 
