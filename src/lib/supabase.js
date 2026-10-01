@@ -13,16 +13,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // renders an error state instead of crashing to a blank page.
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key',
-  {
-    auth: {
-      // Parse ?code= / #access_token= on any landing page, persist session.
-      // PKCE avoids long-lived tokens in the URL (your pasted #access_token link).
-      detectSessionInUrl: true,
-      persistSession: true,
-      autoRefreshToken: true,
-      flowType: 'pkce'
-    }
-  }
+  supabaseAnonKey || 'placeholder-anon-key'
 )
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)

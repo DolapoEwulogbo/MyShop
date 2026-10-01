@@ -23,7 +23,9 @@ export function AuthProvider({ children }) {
         setUser(null)
         setLoading(false)
       })
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    // (event, session) — NOT (session) alone. The old single-arg form set user
+    // to the event string ('SIGNED_IN'), which broke ProtectedRoute / Checkout.
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null)
       setLoading(false)
     })
