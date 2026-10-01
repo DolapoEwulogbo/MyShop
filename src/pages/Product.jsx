@@ -37,7 +37,19 @@ export default function Product() {
 
   if (loading) return <Loading message="Loading product..." />
   if (error) return <ErrorMessage message={error} onRetry={load} />
-  if (!product) return null
+  if (!product) {
+    return (
+      <section className="placeholder" aria-label="Product not found">
+        <h1>Product not found</h1>
+        <p>This product is no longer available.</p>
+        <p>
+          <Link className="button-primary" to="/">
+            Back to products
+          </Link>
+        </p>
+      </section>
+    )
+  }
 
   const availability = getAvailability(product.stock)
   const outOfStock = product.stock <= 0

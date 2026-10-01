@@ -318,3 +318,170 @@ button:not(:disabled):hover {
 .summary-total { font-weight: 700; font-size: 1.25rem; border-top: 1px solid var(--border); padding-top: var(--space-1); }
 .cart-empty { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); text-align: center; display: grid; gap: var(--space-2); justify-items: center; }
 .link-button { background: none; border: none; color: var(--error); padding: 0.5rem 0; min-height: 44px; text-decoration: underline; cursor: pointer; }
+
+/* ============================================================
+   Phase 9 — polish: skip link, checkout layout, form controls
+   Mobile-first, keeps 44px touch targets (PRD Sections 8-9).
+   ============================================================ */
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--primary);
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 0 0 var(--radius) 0;
+  z-index: 10;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+main:focus {
+  outline: none;
+}
+
+.checkout-page {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.checkout-header h1 {
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+}
+
+.checkout-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.checkout-layout {
+  display: grid;
+  gap: var(--space-2);
+}
+
+@media (min-width: 768px) {
+  .checkout-layout {
+    grid-template-columns: 2fr 1fr;
+    align-items: start;
+  }
+}
+
+.checkout-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.checkout-section {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.checkout-section h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.checkout-form label {
+  font-weight: 600;
+  margin-top: var(--space-1);
+}
+
+.checkout-form input,
+.checkout-form textarea {
+  font: inherit;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  min-height: 44px;
+}
+
+.checkout-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.checkout-form input:disabled,
+.checkout-form textarea:disabled {
+  background: #f3f4f6;
+  color: var(--muted);
+}
+
+.checkout-form input[aria-invalid='true'],
+.checkout-form textarea[aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+.field-error {
+  margin: 0;
+  color: var(--error);
+  font-weight: 600;
+}
+
+.checkout-summary {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.checkout-summary h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.checkout-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.checkout-item p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.checkout-total {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-1);
+}
+
+.checkout-grand-total {
+  font-size: 1.2rem;
+}
+
+/* Narrow phones: keep the cart line readable without horizontal scroll. */
+@media (max-width: 480px) {
+  .cart-line {
+    grid-template-columns: 72px 1fr;
+  }
+
+  .cart-line img {
+    width: 72px;
+    height: 72px;
+  }
+
+  .cart-line-total {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .button-secondary {
+    margin-left: 0;
+  }
+}
