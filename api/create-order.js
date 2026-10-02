@@ -1,269 +1,126 @@
-import { createClient } from '@supabase/supabase-js'
-import { sendOrderConfirmation } from '../server/email.js'
+// api/create-order.js — the ONLY public endpoint (AGENTS.md Sec 9).
+// Uses the Web-standard handler signature idiomatic to Vercel Functions with a
+// plain Node/ESM runtime. Node's default export gives us req/res like Express.
+import { supabaseAdmin, isSupabaseAdminConfigured } from '../server/supabaseAdmin.js'
+import { validateOrderBody } from '../server/validate.js'
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+// ---------------------------------------------------------------------------
+// PHASE 7 HOOK — the confirmation email is NOT sent in Phase 6.
+//
+// Phase 7 will, only when the order was newly created (created === true):
+//   1. import { sendOrderConfirmation } from '../server/email.js'
+//   2. load the order, its items and product names with supabaseAdmin
+//   3. call sendOrderConfirmation(...) inside its own try/catch, so a Mailgun
+//      failure can never cancel a successful order.
+// Until then emailSent is always false. See AGENTS.md Sec 9 step 6 / Sec 10.
+// ---------------------------------------------------------------------------
 
 function send(res, status, body) {
   return res.status(status).json(body)
 }
 
+// "Bearer <token>" -> "<token>", or null when absent/malformed.
 function getBearerToken(req) {
-  const header = req.headers.authorization || ''
-
-  if (!header.startsWith('Bearer ')) {
-    return null
-  }
-
-  return header.slice(7)
+  const header = req.headers?.authorization || ''
+  if (!header.startsWith('Bearer ')) return null
+  const token = header.slice(7).trim()
+  return token || null
 }
 
 export default async function handler(req, res) {
+  // 1. Only POST.
   if (req.method !== 'POST') {
-    return send(res, 405, {
-      error: 'Method not allowed.'
-    })
+    return send(res, 405, { message: 'Method not allowed.' })
   }
 
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return send(res, 500, {
-      error: 'Server configuration is incomplete.'
-    })
+  // 2. Server must be configured. Generic message only — never reveal env state.
+  if (!isSupabaseAdminConfigured) {
+    console.error('create-order: Supabase admin env vars are missing.')
+    return send(res, 500, { message: 'We could not place your order. Please try again.' })
   }
 
+  // 3. The bearer token is the ONLY proof of identity.
   const token = getBearerToken(req)
-
   if (!token) {
-    return send(res, 401, {
-      error: 'Authentication required.'
-    })
+    return send(res, 401, { message: 'Authentication required. Please sign in and try again.' })
   }
-
-  // Use the user's access token to verify the authenticated customer.
-  const authClient = createClient(
-    supabaseUrl,
-    supabaseAnonKey
-  )
 
   const {
     data: { user },
     error: userError
-  } = await authClient.auth.getUser(token)
+  } = await supabaseAdmin.auth.getUser(token)
 
   if (userError || !user) {
-    return send(res, 401, {
-      error: 'Invalid or expired session.'
-    })
+    return send(res, 401, { message: 'Your session has expired. Please sign in again.' })
   }
+  // user.id (from the verified token) is the sole source of user_id.
+  // It is deliberately never read from the request body.
 
-  const {
-    customerName,
-    customerEmail,
-    customerPhone,
-    deliveryAddress,
-    items,
-    idempotencyKey
-  } = req.body || {}
-
-  const fieldErrors = {}
-
-  if (typeof customerName !== 'string' || !customerName.trim()) {
-    fieldErrors.customerName = 'Please enter your full name.'
-  }
-
-  if (
-    typeof customerEmail !== 'string' ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())
-  ) {
-    fieldErrors.customerEmail = 'Please enter a valid email address.'
-  }
-
-  if (typeof customerPhone !== 'string' || !customerPhone.trim()) {
-    fieldErrors.customerPhone = 'Please enter your phone number.'
-  }
-
-  if (typeof deliveryAddress !== 'string' || !deliveryAddress.trim()) {
-    fieldErrors.deliveryAddress = 'Please enter your delivery address.'
-  }
-
-  if (!Array.isArray(items) || items.length === 0 || items.length > 50) {
-    fieldErrors.items = 'Your cart must contain between 1 and 50 items.'
-  }
-
-  if (
-    typeof idempotencyKey !== 'string' ||
-    !idempotencyKey.trim() ||
-    idempotencyKey.trim().length > 64
-  ) {
-    fieldErrors.idempotencyKey =
-      'A valid order request key is required (non-empty, max 64 characters).'
-  }
-
-  if (Object.keys(fieldErrors).length > 0) {
+  // 4. Validate the body — per-field messages on failure.
+  const validation = validateOrderBody(req.body)
+  if (!validation.valid) {
     return send(res, 400, {
-      error: 'Please fix the highlighted fields and try again.',
-      fieldErrors
+      message: 'Please fix the highlighted fields and try again.',
+      fieldErrors: validation.fieldErrors
     })
   }
 
-  const cleanItems = items.map((item) => ({
-    productId: item?.productId,
-    quantity: Number(item?.quantity)
-  }))
+  const { idempotencyKey, customer, items } = validation.value
 
-  const invalidItem = cleanItems.find(
-    (item) =>
-      typeof item.productId !== 'string' ||
-      !item.productId ||
-      !Number.isInteger(item.quantity) ||
-      item.quantity < 1 ||
-      item.quantity > 99
-  )
+  // 5. One transaction in the database: idempotency, stock check + decrement,
+  //    order + item inserts, authoritative total. Parameter names must match
+  //    supabase/migrations/002_create_order_function.sql exactly.
+  const { data: order, error: rpcError } = await supabaseAdmin.rpc('create_order', {
+    p_user_id: user.id,
+    p_idempotency_key: idempotencyKey,
+    p_customer_name: customer.fullName,
+    p_customer_email: customer.email,
+    p_customer_phone: customer.phone,
+    p_delivery_address: customer.deliveryAddress,
+    p_items: items
+  })
 
-  if (invalidItem) {
-    return send(res, 400, {
-      error: 'One or more cart items are invalid. Quantity must be 1-99.',
-      fieldErrors: { items: 'Each item needs a valid product and quantity 1-99.' }
-    })
-  }
+  if (rpcError) {
+    // Log server-side only. Never return stacks or internals to the client.
+    console.error('create_order failed:', rpcError.message)
+    const message = rpcError.message || ''
 
-  // Keep one line per product in the browser request.
-  const uniqueProductIds = [
-    ...new Set(cleanItems.map((item) => item.productId))
-  ]
-
-  if (uniqueProductIds.length !== cleanItems.length) {
-    return send(res, 400, {
-      error: 'Duplicate products are not allowed in the order.'
-    })
-  }
-
-  // Service-role client is used only on the server.
-  const supabase = createClient(
-    supabaseUrl,
-    supabaseServiceRoleKey
-  )
-
-  // Idempotency check prevents accidental duplicate orders.
-  const {
-    data: existingOrder,
-    error: existingOrderError
-  } = await supabase
-    .from('orders')
-    .select('id, order_number, total_amount, status')
-    .eq('user_id', user.id)
-    .eq('idempotency_key', idempotencyKey)
-    .maybeSingle()
-
-  if (existingOrderError) {
-    console.error(existingOrderError)
-
-    return send(res, 500, {
-      error: 'We could not check the order request.'
-    })
-  }
-
-  if (existingOrder) {
-    return send(res, 200, {
-      success: true,
-      duplicate: true,
-      emailSent: false,
-      order: existingOrder
-    })
-  }
-
-  // The database function is the final authority for:
-  // - product existence
-  // - current price
-  // - stock
-  // - stock decrement
-  // - order total
-  // - order item prices
-  // - duplicate protection
-  const { data: order, error: orderError } = await supabase.rpc(
-    'create_order',
-    {
-      p_user_id: user.id,
-      p_idempotency_key: idempotencyKey.trim(),
-      p_customer_name: customerName.trim(),
-      p_customer_email: customerEmail.trim(),
-      p_customer_phone: customerPhone.trim(),
-      p_delivery_address: deliveryAddress.trim(),
-      p_items: cleanItems
+    if (message.startsWith('INSUFFICIENT_STOCK')) {
+      return send(res, 409, {
+        code: 'INSUFFICIENT_STOCK',
+        message: message.replace('INSUFFICIENT_STOCK:', '').trim()
+      })
     }
-  )
 
-  if (orderError) {
-    console.error(orderError)
+    if (message.startsWith('PRODUCT_NOT_FOUND')) {
+      return send(res, 409, {
+        code: 'PRODUCT_NOT_FOUND',
+        message: 'One or more items in your cart are no longer available.'
+      })
+    }
 
-    const message = orderError.message || ''
-
-    if (message.startsWith('INVALID_ITEMS:')) {
+    if (message.startsWith('INVALID_ITEMS')) {
       return send(res, 400, {
-        error: message.replace('INVALID_ITEMS:', '').trim(),
-        code: 'INVALID_ITEMS'
+        code: 'INVALID_ITEMS',
+        message: message.replace('INVALID_ITEMS:', '').trim() || 'Your cart is not valid.'
       })
     }
 
-    if (message.startsWith('PRODUCT_NOT_FOUND:')) {
-      return send(res, 409, {
-        error: 'One or more products are no longer available.',
-        code: 'PRODUCT_NOT_FOUND'
-      })
-    }
-
-    if (message.startsWith('INSUFFICIENT_STOCK:')) {
-      return send(res, 409, {
-        error: message.replace('INSUFFICIENT_STOCK:', '').trim(),
-        code: 'INSUFFICIENT_STOCK'
-      })
-    }
-
-    return send(res, 500, {
-      error: 'We could not place your order. Please try again.'
-    })
+    return send(res, 500, { message: 'We could not place your order. Please try again.' })
   }
 
-  // Email is best-effort: failure never cancels the order (AGENTS.md Sec 9).
-  // Only send on first creation — retries with the same idempotency key
-  // return emailSent:false without resending.
+  // 6. Email — Phase 7 only. `created === false` means this idempotency key was
+  //    already used, so a repeat never sends a second email.
   let emailSent = false
-  if (order?.created !== false) {
-    try {
-      const { data: fullOrder } = await supabase
-        .from('orders')
-        .select('id, order_number, total_amount, status, customer_name, customer_email')
-        .eq('id', order.order_id)
-        .maybeSingle()
-
-      const { data: fullItems } = await supabase
-        .from('order_items')
-        .select('quantity, price, products ( name )')
-        .eq('order_id', order.order_id)
-
-      emailSent = await sendOrderConfirmation({
-        to: fullOrder?.customer_email || customerEmail.trim(),
-        customerName: fullOrder?.customer_name || customerName.trim(),
-        orderNumber: fullOrder?.order_number ?? order?.order_number,
-        items: (fullItems || []).map((row) => ({
-          name: row.products?.name || 'Item',
-          quantity: row.quantity,
-          price: row.price
-        })),
-        total: fullOrder?.total_amount ?? 0,
-        status: fullOrder?.status || 'pending'
-      })
-    } catch (err) {
-      console.error(`Order email failed (non-fatal): ${err.message}`)
-      emailSent = false
-    }
+  if (order?.created === true) {
+    // PHASE 7 HOOK: send the confirmation email here (see the header comment).
+    emailSent = false
   }
 
-  return send(res, 201, {
-    success: true,
-    duplicate: order?.created === false,
-    emailSent,
-    order
+  // 7. Success.
+  return send(res, 200, {
+    orderId: order?.order_id,
+    orderNumber: order?.order_number,
+    emailSent
   })
 }
