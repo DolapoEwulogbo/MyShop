@@ -12,7 +12,7 @@ Companion documents:
 
 * Browse products, open a product, add to cart, change quantities (cart persists in `localStorage`).
 * Checkout form with client-side validation and per-field messages.
-* `POST /api/create-order` — the only public endpoint. It verifies the Supabase access token, re-reads prices and stock server-side, writes the order through the `create_order` SQL function, and sends the confirmation email as a best-effort step.
+* `POST /api/create-order` — the only public endpoint. It verifies the Supabase access token, re-reads prices and stock server-side, and writes the order through the `create_order` SQL function in one transaction. The confirmation email is **not** sent yet — Phase 7 adds it (the API already returns `emailSent: false`).
 
 ## Requirements
 
@@ -46,20 +46,30 @@ In production the same values live in the Vercel project's Environment Variables
 
 ## Run locally
 
-Frontend only (products, cart and storefront UI):
+Local development uses **two processes**: Vite serves the app, and the Vercel CLI serves the `/api/create-order` function. Vite proxies `/api` to the CLI, so the browser only ever talks to `http://localhost:3000` — one origin, like production.
+
+Install the CLI once:
 
 ```bash
 npm install
-npm run dev
-```
-
-Full app including the `/api/create-order` function — use the Vercel CLI so functions and env vars are available:
-
-```bash
+npm i -g vercel
 vercel login     # once
 vercel link      # once, to connect this folder to the Vercel project
-vercel dev
 ```
+
+Then run two terminals:
+
+```bash
+# Terminal A — the API only (ignore the app it serves; we use only its function runtime)
+vercel dev --listen 3001
+
+# Terminal B — the app
+npm run dev      # http://localhost:3000
+```
+
+Open `http://localhost:3000`; requests to `/api/*` are proxied to `http://localhost:3001`.
+
+`npm run dev` on its own still serves the storefront (products, cart, UI), but `/api/create-order` returns 404 until Terminal A is running. We do not run the app under `vercel dev`, because its rewrite handling breaks Vite's dev assets; the single `vercel.json` rewrite is kept for production only.
 
 ## Build
 
@@ -80,7 +90,7 @@ Push to `main`; Vercel builds and deploys automatically. `vercel.json` rewrites 
 
 ```text
 api/         Vercel functions (only create-order.js is public)
-server/      server-only helpers imported by api/ (e.g. email.js — Mailgun)
+server/      server-only helpers imported by api/ (supabaseAdmin.js, validate.js)
 src/         React app: components, pages, context, services, lib, utils
 supabase/    migrations + seed
 ```

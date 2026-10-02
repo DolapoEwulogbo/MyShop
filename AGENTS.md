@@ -168,7 +168,14 @@ The Success page must not claim the email was delivered unless `emailSent` is tr
 
 See `.env.example`. Browser-safe: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Server-only (never `VITE_`): `SUPABASE_SERVICE_ROLE_KEY`, `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`, `MAILGUN_API_BASE_URL`. Server code reads the Supabase URL from `VITE_SUPABASE_URL`.
 
-Local: put values in `.env.local`. Plain `npm run dev` does **not** serve `/api`. From Phase 6, run the app with **`vercel dev`** (install: `npm i -g vercel`, then `vercel login` and `vercel link`). If functions can't see your variables, run `vercel env pull .env.local` after adding them in Vercel.
+Local: put values in `.env.local`. Plain `npm run dev` does **not** serve `/api`, so from Phase 6 local development uses **two processes** (install the CLI once: `npm i -g vercel`, then `vercel login` and `vercel link`):
+
+* **Terminal A — the API only:** `vercel dev --listen 3001`. Ignore the app it serves; only its function runtime is used.
+* **Terminal B — the app:** `npm run dev` on port 3000.
+
+Vite proxies `/api` → `http://localhost:3001` (`vite.config.js`), so the browser only ever talks to `http://localhost:3000`. Two processes are deliberate: `vercel dev`'s rewrite handling breaks Vite's own dev assets, and keeping one origin locally matches production. Production still uses the single `vercel.json` rewrite.
+
+If functions can't see your variables, run `vercel env pull .env.local` after adding them in Vercel.
 
 One Supabase project is used for both local and production; only the redirect URLs differ.
 
