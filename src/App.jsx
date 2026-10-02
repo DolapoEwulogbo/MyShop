@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router-dom'
+import { brandDisplayName } from './config/brand.js'
 import Navbar from './components/Navbar.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import Home from './pages/Home.jsx'
@@ -32,7 +33,7 @@ export default function App() {
         </Routes>
       </main>
       <footer>
-        <p>My Shop - everyday essentials.</p>
+        <p>{brandDisplayName()}</p>
       </footer>
     </>
   )

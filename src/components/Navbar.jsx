@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { BRAND } from '../config/brand.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useCart } from '../context/CartContext.jsx'
 
@@ -9,7 +10,7 @@ export default function Navbar() {
     <header>
       <nav aria-label="Main navigation">
         <NavLink to="/" className="brand">
-          My Shop
+          {BRAND.name}
         </NavLink>
         <NavLink to="/" end className={navClass}>
           Home
