@@ -23,7 +23,7 @@ export async function createOrder({ customer, items, idempotencyKey }) {
   } = await supabase.auth.getSession()
 
   if (!session?.access_token) {
-    throw new OrderError('Your session has expired. Please sign in again.', { status: 401 })
+    throw new OrderError('You are signed out. Please sign in again.', { status: 401 })
   }
 
   const response = await fetch('/api/create-order', {
