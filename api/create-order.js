@@ -51,6 +51,7 @@ export default async function handler(req, res) {
   } = await supabaseAdmin.auth.getUser(token)
 
   if (userError || !user) {
+    console.error('getUser failed:', userError?.message, userError?.status)
     return send(res, 401, { message: 'Your session has expired. Please sign in again.' })
   }
   // user.id (from the verified token) is the sole source of user_id.
