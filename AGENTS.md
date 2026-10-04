@@ -9,10 +9,11 @@ Precedence if they conflict: `supabase/migrations/*.sql` (schema) > `AGENTS.md` 
 
 The owner is a **complete beginner** building this to learn and to satisfy this assignment:
 *"Build a website for a shop. Add a checkout page. Persist everything in a database using Supabase. Send confirmation emails using Mailgun. Do Google auth using Google Cloud Console."*
+*(Mailgun now requires payment; the instructor allows any alternative — this project uses Resend. See Section 10.)*
 
 1. **One phase at a time** (Section 12). At the end of a phase: stop, list exactly what to verify by hand, and wait for "continue".
 2. **Explain as you go.** Before creating files, say in 1–3 lines what you're building and why. After, give a one-sentence purpose per new file.
-3. **Dashboard work is a human step** (Supabase, Google Cloud, Mailgun, Vercel, GitHub). Point to the matching section of `SETUP.md` and give exact click-by-click steps. Never claim you did it. Never invent keys, URLs or IDs — use placeholders.
+3. **Dashboard work is a human step** (Supabase, Google Cloud, Resend, Vercel, GitHub). Point to the matching section of `SETUP.md` and give exact click-by-click steps. Never claim you did it. Never invent keys, URLs or IDs — use placeholders.
 4. **Ask before adding any dependency.** Pre-approved: `react`, `react-router-dom`, `@supabase/supabase-js`. Everything else needs a question first. (Vercel CLI is installed globally, not as a dependency.)
 5. **Never print, log or commit secrets.** Secrets live only in `.env.local` (gitignored) and Vercel's env settings.
 6. **Show real errors.** When something fails, show the actual error, explain it plainly, fix the root cause. Don't hide failures with empty `catch` blocks.
@@ -28,7 +29,7 @@ The owner is a **complete beginner** building this to learn and to satisfy this 
 * Supabase: Postgres, Auth, Row Level Security
 * Supabase Auth with Google OAuth (credentials from Google Cloud Console)
 * Vercel Functions (`api/`) for server logic; Vercel for hosting
-* Mailgun for email, called with plain `fetch` (no SDK)
+* Resend for email, called with plain `fetch` (no SDK)
 * GitHub for source control
 
 ## 2. Architecture
@@ -40,10 +41,10 @@ Browser (React) ──read products/orders──▶ Supabase (RLS: read-only for
       │
       └─ POST /api/create-order (Bearer token) ─▶ Vercel Function
                                                     ├─▶ Supabase: rpc create_order (service role, one transaction)
-                                                    └─▶ Mailgun: confirmation email (failure never cancels the order)
+                                                    └─▶ Resend: confirmation email (failure never cancels the order)
 ```
 
-Responsibilities: React = UI only, no secrets. Supabase = data, auth, read-authorization. Vercel Function = anything needing secrets or trust (pricing, stock, order writes, email). Mailgun = delivery only.
+Responsibilities: React = UI only, no secrets. Supabase = data, auth, read-authorization. Vercel Function = anything needing secrets or trust (pricing, stock, order writes, email). Resend = delivery only.
 
 ## 3. Repository structure
 
@@ -53,7 +54,7 @@ my-shop/
 │   └── create-order.js          # the ONLY public endpoint
 ├── server/                      # server-only helpers, imported by api/ (NOT public)
 │   ├── supabaseAdmin.js
-│   ├── email.js                 # Mailgun via fetch
+│   ├── email.js                 # Resend via fetch
 │   └── validate.js
 ├── public/
 ├── src/
@@ -71,7 +72,7 @@ my-shop/
 ├── AGENTS.md  PRD.md  SETUP.md
 ```
 
-There is deliberately **no** `send-order-email.js` endpoint: anything in `api/` is publicly callable, so an email endpoint would let strangers send mail from the owner's Mailgun account. Email is a helper in `server/email.js`, called only from `create-order.js`.
+There is deliberately **no** `send-order-email.js` endpoint: anything in `api/` is publicly callable, so an email endpoint would let strangers send mail from the owner's Resend account. Email is a helper in `server/email.js`, called only from `create-order.js`.
 
 Because `package.json` has `"type": "module"` (Vite default), functions use ESM: `export default async function handler(req, res) { ... }`.
 
@@ -147,7 +148,7 @@ The browser sends **no prices and no totals**.
 4. Call `supabaseAdmin.rpc('create_order', { p_user_id, p_idempotency_key, p_customer_name, p_customer_email, p_customer_phone, p_delivery_address, p_items })`.
 5. Map errors by message prefix: `INSUFFICIENT_STOCK` → 409 `{ code, message }`; `PRODUCT_NOT_FOUND` → 409; `INVALID_ITEMS` → 400; anything else → log server-side, return 500 with a generic message (no stack traces, no internals).
 6. If the result has `created: true`, load the order, items and product names with the admin client and send the confirmation email inside its own `try/catch`. If `created: false` (a repeat of the same key), **do not send another email**.
-7. Respond `200 { orderId, orderNumber, emailSent }`. `emailSent` is `false` if Mailgun failed; the order still succeeded.
+7. Respond `200 { orderId, orderNumber, emailSent }`. `emailSent` is `false` if the email failed; the order still succeeded.
 
 **Client behaviour (`Checkout.jsx` + `orderService.js`)**
 
@@ -158,7 +159,9 @@ The browser sends **no prices and no totals**.
 
 ## 10. Email (`server/email.js`)
 
-`POST {MAILGUN_API_BASE_URL}/v3/{MAILGUN_DOMAIN}/messages` with header `Authorization: Basic base64("api:" + MAILGUN_API_KEY)` and a form-encoded body (`from`, `to`, `subject`, `text`, `html`). Use `fetch`; no extra package.
+Mailgun now requires payment, so the shop uses **Resend** (instructor-approved alternative; free tier 3,000 emails/month). `POST https://api.resend.com/emails` with header `Authorization: Bearer <RESEND_API_KEY>` and a JSON body (`from`, `to`, `subject`, `text`, `html`). Use `fetch`; no extra package.
+
+Sender: `RESEND_FROM`, defaulting to `My Shop <onboarding@resend.dev>`, which delivers only to the email address on the Resend account until a custom domain is verified (see `SETUP.md` Part G).
 
 Content: customer name, order number, items (name, quantity, unit price, line total), total, status, store name. No secrets or internal details. Escape any user-provided text placed in the HTML.
 
@@ -166,7 +169,7 @@ The Success page must not claim the email was delivered unless `emailSent` is tr
 
 ## 11. Environment variables
 
-See `.env.example`. Browser-safe: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Server-only (never `VITE_`): `SUPABASE_SERVICE_ROLE_KEY`, `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`, `MAILGUN_API_BASE_URL`. Server code reads the Supabase URL from `VITE_SUPABASE_URL`.
+See `.env.example`. Browser-safe: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Server-only (never `VITE_`): `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `RESEND_FROM` (optional). Server code reads the Supabase URL from `VITE_SUPABASE_URL`.
 
 Local: put values in `.env.local`. Plain `npm run dev` does **not** serve `/api`, so from Phase 6 local development uses **two processes** (install the CLI once: `npm i -g vercel`, then `vercel login` and `vercel link`):
 
@@ -203,8 +206,8 @@ Each phase ends with a success condition and a stop.
 **Phase 6 — Checkout.** Checkout form + validation + order summary, `api/create-order.js`, `server/*` helpers, `orderService.createOrder`, Success page. Run with `vercel dev`.
 *Success:* a valid checkout creates one `orders` row and its `order_items`, decrements stock, shows Success; ordering more than available stock is rejected with a clear message; double-clicking Place Order creates exactly one order; tampering with a price in the browser has no effect.
 
-**Phase 7 — Mailgun.** Owner completes `SETUP.md` Part G. Agent builds `server/email.js` and wires it in.
-*Success:* a successful order sends the email to an authorised address; with a deliberately wrong API key the order still succeeds and the Success page shows the "couldn't send" wording.
+**Phase 7 — Resend.** Owner completes `SETUP.md` Part G. Agent builds `server/email.js` and wires it in.
+*Success:* a successful order sends the email to the Resend account's address; with a deliberately wrong API key the order still succeeds and the Success page shows the "couldn't send" wording.
 
 **Phase 8 — Orders + Account.** `/orders` list (number, date, total, status), optional order detail view, `/account`.
 *Success:* user sees their own orders only (verify with a second Google account).

@@ -1,18 +1,18 @@
 # My Shop
 
-A small e-commerce shop built with React + Vite, Supabase (database + auth), Google sign-in, Mailgun confirmation emails, and hosted on Vercel.
+A small e-commerce shop built with React + Vite, Supabase (database + auth), Google sign-in, Resend confirmation emails, and hosted on Vercel.
 
 Companion documents:
 
 * `PRD.md` — what the product is and the UX.
 * `AGENTS.md` — architecture, layering rules and the build phases. `supabase/migrations/*.sql` is the schema source of truth.
-* `SETUP.md` — the click-by-click dashboard steps (Supabase, Google Cloud, Mailgun, Vercel) that only you can do.
+* `SETUP.md` — the click-by-click dashboard steps (Supabase, Google Cloud, Resend, Vercel) that only you can do.
 
 ## What works today
 
 * Browse products, open a product, add to cart, change quantities (cart persists in `localStorage`).
 * Checkout form with client-side validation and per-field messages.
-* `POST /api/create-order` — the only public endpoint. It verifies the Supabase access token, re-reads prices and stock server-side, and writes the order through the `create_order` SQL function in one transaction. The confirmation email is **not** sent yet — Phase 7 adds it (the API already returns `emailSent: false`).
+* `POST /api/create-order` — the only public endpoint. It verifies the Supabase access token, re-reads prices and stock server-side, writes the order through the `create_order` SQL function in one transaction, and sends a confirmation email via Resend (an email failure never cancels the order — the API returns `emailSent` so the Success page can be honest about it).
 
 ## Requirements
 
@@ -36,10 +36,8 @@ Server only (used by `api/` and `server/`; never prefix these with `VITE_`):
 
 ```text
 SUPABASE_SERVICE_ROLE_KEY
-MAILGUN_API_KEY
-MAILGUN_DOMAIN
-MAILGUN_FROM
-MAILGUN_API_BASE_URL   # https://api.mailgun.net (US) or https://api.eu.mailgun.net (EU)
+RESEND_API_KEY
+RESEND_FROM            # optional; default is My Shop <onboarding@resend.dev>
 ```
 
 In production the same values live in the Vercel project's Environment Variables. If a function cannot see them locally, run `vercel env pull .env.local` after adding them in Vercel.

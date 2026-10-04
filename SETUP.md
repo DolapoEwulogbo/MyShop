@@ -12,7 +12,7 @@ Keep a private note (not in the repo) with every value you collect.
 2. **Git** from git-scm.com. Check: `git --version`. Set your identity once:
    `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"`.
 3. **VS Code** (you have it). Open the `my-shop` folder in it.
-4. **Accounts** (free tiers): GitHub, Supabase, Google Cloud, Mailgun, Vercel (sign up to Vercel with GitHub).
+4. **Accounts** (free tiers): GitHub, Supabase, Google Cloud, Resend, Vercel (sign up to Vercel with GitHub).
 5. Later, in Phase 6: `npm i -g vercel`.
 
 ---
@@ -69,19 +69,18 @@ Remember: Google gets the **Supabase** callback; Supabase gets **your app's** UR
    `git init`, `git add .`, `git commit -m "chore: initial setup"`, then the `git remote add origin ...` and `git push -u origin main` commands GitHub shows you.
 2. vercel.com → **Add New → Project** → import the repo → Framework preset **Vite** → Deploy.
 3. Open the deployed URL. Test that visiting `/cart` directly (or refreshing on it) doesn't 404.
-4. In **Vercel → Project → Settings → Environment Variables**, add (as they become available): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`, `MAILGUN_API_BASE_URL`.
+4. In **Vercel → Project → Settings → Environment Variables**, add (as they become available): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `RESEND_FROM`.
 5. **After adding or changing any `VITE_` variable, redeploy** — they're baked in at build time.
 6. Add the Vercel URL to Supabase redirect URLs (Part E).
 
-## Part G — Mailgun (before Phase 7)
+## Part G — Resend (before Phase 7)
 
-Plan limits and sandbox rules change; check Mailgun's current terms on its pricing and docs pages.
+Mailgun now requires payment, so the shop uses **Resend** (free tier: 3,000 emails/month, 100/day) instead. Sign up and set up:
 
-1. Sign up at mailgun.com. Note whether your account is **US** or **EU** (the dashboard/API URL shows it). Set `MAILGUN_API_BASE_URL` to `https://api.mailgun.net` (US) or `https://api.eu.mailgun.net` (EU).
-2. **Sending → Domains:** use the provided **sandbox domain** (looks like `sandboxXXXX.mailgun.org`) → `MAILGUN_DOMAIN`.
-3. **Sandbox restriction:** sandbox domains normally deliver **only to recipients you've added as authorised recipients**. Add your own email (and any test emails) and click the verification link Mailgun emails you. Orders using other addresses won't receive mail until you add a verified custom domain (needs DNS records you control; optional for this assignment).
-4. Create an **API key** in Mailgun's API keys settings → `MAILGUN_API_KEY` (private).
-5. `MAILGUN_FROM` example: `My Shop <postmaster@sandboxXXXX.mailgun.org>`.
+1. Go to resend.com → **Sign up** (Google or GitHub is fine).
+2. **API Keys** → **Create API Key** → name it `my-shop` → permission **Full access** → copy the key (starts with `re_`) → this is `RESEND_API_KEY` (**private**).
+3. **Testing without a domain:** the default sender `My Shop <onboarding@resend.dev>` delivers **only to the email address on your Resend account**. Put your own email in the checkout form when testing. Orders using other addresses won't receive mail until step 4.
+4. **Optional (real sending):** **Domains → Add Domain**, follow the DNS steps (needs a domain you control), then set `RESEND_FROM` to something like `My Shop <orders@yourdomain.com>`.
 
 ---
 

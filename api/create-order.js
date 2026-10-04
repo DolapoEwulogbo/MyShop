@@ -2,18 +2,8 @@
 // Uses the Web-standard handler signature idiomatic to Vercel Functions with a
 // plain Node/ESM runtime. Node's default export gives us req/res like Express.
 import { supabaseAdmin, isSupabaseAdminConfigured } from '../server/supabaseAdmin.js'
+import { sendOrderConfirmation } from '../server/email.js'
 import { validateOrderBody } from '../server/validate.js'
-
-// ---------------------------------------------------------------------------
-// PHASE 7 HOOK — the confirmation email is NOT sent in Phase 6.
-//
-// Phase 7 will, only when the order was newly created (created === true):
-//   1. import { sendOrderConfirmation } from '../server/email.js'
-//   2. load the order, its items and product names with supabaseAdmin
-//   3. call sendOrderConfirmation(...) inside its own try/catch, so a Mailgun
-//      failure can never cancel a successful order.
-// Until then emailSent is always false. See AGENTS.md Sec 9 step 6 / Sec 10.
-// ---------------------------------------------------------------------------
 
 function send(res, status, body) {
   return res.status(status).json(body)
@@ -110,12 +100,32 @@ export default async function handler(req, res) {
     return send(res, 500, { message: 'We could not place your order. Please try again.' })
   }
 
-  // 6. Email — Phase 7 only. `created === false` means this idempotency key was
-  //    already used, so a repeat never sends a second email.
+  // 6. Email — only when the order was newly created. `created === false` means
+  //    this idempotency key was already used, so a repeat never sends a second
+  //    email. An email failure is logged but never fails the order.
   let emailSent = false
   if (order?.created === true) {
-    // PHASE 7 HOOK: send the confirmation email here (see the header comment).
-    emailSent = false
+    try {
+      const { data: orderRow, error: orderError } = await supabaseAdmin
+        .from('orders')
+        .select('id, order_number, total_amount, status, customer_name, customer_email')
+        .eq('id', order.order_id)
+        .single()
+
+      const { data: items, error: itemsError } = await supabaseAdmin
+        .from('order_items')
+        .select('quantity, price, products ( name )')
+        .eq('order_id', order.order_id)
+
+      if (orderError || itemsError || !orderRow) {
+        throw new Error(orderError?.message || itemsError?.message || 'order not found')
+      }
+
+      emailSent = await sendOrderConfirmation(orderRow, items)
+    } catch (emailError) {
+      console.error('create-order: confirmation email failed:', emailError.message)
+      emailSent = false
+    }
   }
 
   // 7. Success.
